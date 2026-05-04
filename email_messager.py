@@ -4,11 +4,16 @@ from email.message import EmailMessage
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 import auth
+import os
+from dotenv import load_dotenv
 
-def gmail_create_draft():
-    """Create and insert a draft email.
-    Print the returned draft's message and id.
-    Returns: Draft object, including draft id and message meta data.
+load_dotenv()
+EMAIL_ADDRESS = os.getenv("EMAIL_ADDRESS")
+
+def gmail_send_message(risk_score, overvalued_score):
+    """Create and send an email message
+    Print the returned  message id
+    Returns: Message object, including message id
 
     Load pre-authorized user credentials from the environment.
     TODO(developer) - See https://developers.google.com/identity
@@ -17,37 +22,32 @@ def gmail_create_draft():
     creds = auth.get_credentials()
 
     try:
-        # create gmail api client
         service = build("gmail", "v1", credentials=creds)
-
         message = EmailMessage()
 
-        message.set_content("This is automated draft mail")
+        message.set_content(f"You have a new notification from the Stock Tracker!\n\nRisk Score: {risk_score}\nOvervalued Score: {overvalued_score}")
 
-        message["To"] = "harmeyforever5435@gmail.com"
-        message["From"] = "harmeyforever5435@gmail.com"
+        message["To"] = EMAIL_ADDRESS
+        message["From"] = EMAIL_ADDRESS
         message["Subject"] = "Stock Tracker Notification!"
 
         # encoded message
         encoded_message = base64.urlsafe_b64encode(message.as_bytes()).decode()
 
-        create_message = {"message": {"raw": encoded_message}}
+        create_message = {"raw": encoded_message}
         # pylint: disable=E1101
-        draft = (
+        send_message = (
             service.users()
-            .drafts()
-            .create(userId="me", body=create_message)
+            .messages()
+            .send(userId="me", body=create_message)
             .execute()
         )
-
-        print(f'Draft id: {draft["id"]}\nDraft message: {draft["message"]}')
-
+        print(f'Message Id: {send_message["id"]}')
     except HttpError as error:
         print(f"An error occurred: {error}")
-        draft = None
-
-    return draft
+        send_message = None
+    return send_message
 
 
 if __name__ == "__main__":
-    gmail_create_draft()
+    gmail_send_message(6.5, 75)

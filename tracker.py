@@ -9,6 +9,8 @@ import time
 import pandas as pd
 import numpy as np
 from datetime import date
+from email_messager import gmail_send_message
+import sys
 
 load_dotenv()
 SPREADSHEET_ID = os.getenv("SPREADSHEET_ID")
@@ -16,6 +18,10 @@ fred = Fred(api_key=os.getenv("FRED_API_KEY"))
 
 START_DATE = "2026-04-27"
 RISK_POSITION = "B15"
+OVERVALUDED_POSITION = "B21"
+
+RISK_THRESHOLD = 6.5
+OVERVALUED_THRESHOLD = 75
 
 # Representative sample of large caps across sectors
 sample = [
@@ -150,6 +156,8 @@ def input_data(for_date=None):
     )
 
     risk_score = batch_get_values(SPREADSHEET_ID, RISK_POSITION)["valueRanges"][0].get("values", [["0"]])[0][0]
+    overvalued_score = batch_get_values(SPREADSHEET_ID, OVERVALUDED_POSITION)["valueRanges"][0].get("values", [["0"]])[0][0]
+
     date_diff = (pd.to_datetime(for_date) - pd.to_datetime(START_DATE)).days
     graph_position = f"F{2 + date_diff}:G{2 + date_diff}"
 
@@ -160,6 +168,8 @@ def input_data(for_date=None):
         [[for_date.strftime("%Y-%m-%d"), risk_score]],
     )
 
+    if float(risk_score) >= RISK_THRESHOLD or float(overvalued_score) >= OVERVALUED_THRESHOLD:
+        gmail_send_message(risk_score, overvalued_score)
+
 if __name__ == "__main__":
-    import sys
     input_data(sys.argv[1] if len(sys.argv) > 1 else None)
