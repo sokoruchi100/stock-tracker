@@ -19,7 +19,7 @@ jobs:
         env:
           GOOGLE_CREDENTIALS_JSON: ${{ secrets.GOOGLE_CREDENTIALS_JSON }}
           FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
-          PERSONAL_EMAIL_ADDRESS: ${{ secrets.PERSONAL_EMAIL_ADRESS }}
+          PERSONAL_EMAIL_ADDRESS: ${{ secrets.PERSONAL_EMAIL_ADDRESS }}
           PERSONAL_EMAIL_APP_PASSWORD: ${{ secrets.PERSONAL_EMAIL_APP_PASSWORD }}
           SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
           TARGET_EMAIL_ADDRESS: ${{ secrets.TARGET_EMAIL_ADDRESS }}
