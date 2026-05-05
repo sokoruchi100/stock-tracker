@@ -15,7 +15,8 @@ jobs:
         with:
           python-version: '3.11'
       - run: pip install google-api-python-client google-auth-oauthlib google-auth-httplib2 yfinance fredapi pandas numpy python-dotenv
-      - run: python -c "import os; v=os.environ.get('GOOGLE_CREDENTIALS_JSON',''); print(f'GOOGLE_CREDENTIALS_JSON length: {len(v)}')"
+      - name: Diagnose secret
+        run: python -c "import os; v=os.environ.get('GOOGLE_CREDENTIALS_JSON',''); print('GOOGLE_CREDENTIALS_JSON length:', len(v))"
         env:
           GOOGLE_CREDENTIALS_JSON: ${{ secrets.GOOGLE_CREDENTIALS_JSON }}
       - run: python tracker.py
