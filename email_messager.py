@@ -1,53 +1,52 @@
-import base64
-from email.message import EmailMessage
-
-from googleapiclient.discovery import build
-from googleapiclient.errors import HttpError
-import auth
 import os
 from dotenv import load_dotenv
+import smtplib
+from email.mime.text import MIMEText
 
 load_dotenv()
-EMAIL_ADDRESS = os.getenv("EMAIL_ADDRESS")
 
-def gmail_send_message(risk_score, overvalued_score):
-    """Create and send an email message
-    Print the returned  message id
-    Returns: Message object, including message id
+def determine_risk_message(risk_score):
+    risk_score = float(risk_score)
+    if risk_score >= 8:
+        return "🚨 High Risk: Reduce aggressively (raise cash, hedge)"
+    elif risk_score >= 7:
+        return "🔴 Reduce Risk: Trim positions, no new buys"
+    elif risk_score >= 5:
+        return "🟠 Neutral: Hold, selective buying only"
+    elif risk_score >= 3:
+        return "🟡 Accumulate: Start adding gradually"
+    else:
+        return "🟢 Aggressive Buy: Deploy cash heavily"
 
-    Load pre-authorized user credentials from the environment.
-    TODO(developer) - See https://developers.google.com/identity
-    for guides on implementing OAuth2 for the application.
-    """
-    creds = auth.get_credentials()
+def determine_valued_message(valued_score):
+    valued_score = float(valued_score)
+    if valued_score > 40:
+        return "🚨 Extremely Overvalued: Reduce aggressively"
+    elif valued_score > 25:
+        return "🔴 Overvalued: Trim risk, avoid new buys"
+    elif valued_score > 10:
+        return "🟠 Slightly Overvalued: Be selective"
+    elif valued_score > -10:
+        return "🟡 Fair Value: Neutral positioning"
+    elif valued_score > -25:
+        return "🟢 Undervalued: Start adding"
+    else:
+        return "💰 Deep Value: Aggressive buying zone"
 
-    try:
-        service = build("gmail", "v1", credentials=creds)
-        message = EmailMessage()
+def send_alert(risk_score, overvalued_score):
+    risk_message = determine_risk_message(risk_score)
+    valued_message = determine_valued_message(overvalued_score)
+    msg = MIMEText(f"You have a new notification from the Stock Tracker!\n\nRisk Score: {risk_score}\nRisk Message: {risk_message}\n\nValued Score: {overvalued_score}\nValued Message: {valued_message}")
+    msg["Subject"] = "Stock Tracker Notification!"
+    msg["From"] = os.environ["PERSONAL_EMAIL_ADDRESS"]
+    msg["To"] = os.environ["TARGET_EMAIL_ADDRESS"]
 
-        message.set_content(f"You have a new notification from the Stock Tracker!\n\nRisk Score: {risk_score}\nOvervalued Score: {overvalued_score}")
-
-        message["To"] = EMAIL_ADDRESS
-        message["From"] = EMAIL_ADDRESS
-        message["Subject"] = "Stock Tracker Notification!"
-
-        # encoded message
-        encoded_message = base64.urlsafe_b64encode(message.as_bytes()).decode()
-
-        create_message = {"raw": encoded_message}
-        # pylint: disable=E1101
-        send_message = (
-            service.users()
-            .messages()
-            .send(userId="me", body=create_message)
-            .execute()
+    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+        server.login(
+            os.environ["PERSONAL_EMAIL_ADDRESS"],
+            os.environ["PERSONAL_EMAIL_APP_PASSWORD"]
         )
-        print(f'Message Id: {send_message["id"]}')
-    except HttpError as error:
-        print(f"An error occurred: {error}")
-        send_message = None
-    return send_message
-
+        server.send_message(msg)
 
 if __name__ == "__main__":
-    gmail_send_message(6.5, 75)
+    send_alert(0.65, 75)

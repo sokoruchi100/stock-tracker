@@ -9,19 +9,14 @@ import time
 import pandas as pd
 import numpy as np
 from datetime import date
-from email_messager import gmail_send_message
+from email_messager import send_alert
 import sys
 
 load_dotenv()
-SPREADSHEET_ID = os.getenv("SPREADSHEET_ID")
-fred = Fred(api_key=os.getenv("FRED_API_KEY"))
 
 START_DATE = "2026-04-27"
 RISK_POSITION = "B15"
-OVERVALUDED_POSITION = "B21"
-
-RISK_THRESHOLD = 6.5
-OVERVALUED_THRESHOLD = 75
+VALUED_POSITION = "B21"
 
 # Representative sample of large caps across sectors
 sample = [
@@ -38,6 +33,17 @@ sample = [
     "AAL", "UAL", "DAL", "LUV", "ALK",         # airlines
     "RKT", "OPEN", "Z", "TREX"         # housing adjacent
 ]
+
+def get_config():
+    result = batch_get_values(os.getenv("SPREADSHEET_ID"), "Config!A1:B4")
+    rows = result["valueRanges"][0].get("values", [])
+    raw = {row[0]: row[1] for row in rows if len(row) >= 2}
+    return {
+        "UPPER_RISK_THRESHOLD":  float(raw["UPPER RISK THRESHOLD"]),
+        "LOWER_RISK_THRESHOLD":  float(raw["LOWER RISK THRESHOLD"]),
+        "OVERVALUED_THRESHOLD":  float(raw["OVERVALUED THRESHOLD"]),
+        "UNDERVALUED_THRESHOLD": float(raw["UNDERVALUED THRESHOLD"]),
+    }
 
 def batch_update_values(
     spreadsheet_id, range_name, value_input_option, _values
@@ -101,11 +107,13 @@ def get_price(ticker, for_date=None):
         price = t.fast_info.get("last_price")
         if price is not None:
             return price
-    end = pd.to_datetime(for_date) + pd.Timedelta(days=4) if for_date else None
+        return t.history(period="5d")["Close"].iloc[-1]
+    end = pd.to_datetime(for_date) + pd.Timedelta(days=4)
     hist = t.history(start=for_date, end=end)["Close"]
     return hist.iloc[0]
 
 def get_credit_spread(for_date=None, retries=3):
+    fred = Fred(api_key=os.environ.get("FRED_API_KEY"))
     for i in range(retries):
         try:
             return fred.get_series('BAMLH0A0HYM2', observation_end=for_date).iloc[-1]
@@ -149,27 +157,30 @@ def input_data(for_date=None):
     print(f"SP500: {SP500}, TenYear: {TenYear}, YieldCurve: {YieldCurve}, CreditSpread: {CreditSpread}, Breadth: {Breadth}")
 
     batch_update_values(
-        SPREADSHEET_ID,
+        os.getenv("SPREADSHEET_ID"),
         "B5:B9",
         "USER_ENTERED",
         [[SP500], [TenYear], [YieldCurve], [CreditSpread], [Breadth]],
     )
 
-    risk_score = batch_get_values(SPREADSHEET_ID, RISK_POSITION)["valueRanges"][0].get("values", [["0"]])[0][0]
-    overvalued_score = batch_get_values(SPREADSHEET_ID, OVERVALUDED_POSITION)["valueRanges"][0].get("values", [["0"]])[0][0]
+    risk_score = batch_get_values(os.getenv("SPREADSHEET_ID"), RISK_POSITION)["valueRanges"][0].get("values", [["0"]])[0][0]
+    valued_score = batch_get_values(os.getenv("SPREADSHEET_ID"), VALUED_POSITION)["valueRanges"][0].get("values", [["0"]])[0][0]
 
     date_diff = (pd.to_datetime(for_date) - pd.to_datetime(START_DATE)).days
     graph_position = f"F{2 + date_diff}:G{2 + date_diff}"
 
     batch_update_values(
-        SPREADSHEET_ID,
+        os.getenv("SPREADSHEET_ID"),
         graph_position,
         "USER_ENTERED",
         [[for_date.strftime("%Y-%m-%d"), risk_score]],
     )
 
-    if float(risk_score) >= RISK_THRESHOLD or float(overvalued_score) >= OVERVALUED_THRESHOLD:
-        gmail_send_message(risk_score, overvalued_score)
+    config = get_config()
+    print(config)
+
+    if float(risk_score) >= config["UPPER_RISK_THRESHOLD"] or float(risk_score) <= config["LOWER_RISK_THRESHOLD"] or float(valued_score) >= config["OVERVALUED_THRESHOLD"] or float(valued_score) <= config["UNDERVALUED_THRESHOLD"]:
+        send_alert(risk_score, valued_score)
 
 if __name__ == "__main__":
     input_data(sys.argv[1] if len(sys.argv) > 1 else None)
