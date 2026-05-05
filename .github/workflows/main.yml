@@ -9,21 +9,17 @@ on:
 jobs:
   run:
     runs-on: ubuntu-latest
+    env:
+      GOOGLE_CREDENTIALS_JSON: ${{ secrets.GOOGLE_CREDENTIALS_JSON }}
+      FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+      PERSONAL_EMAIL_ADDRESS: ${{ secrets.PERSONAL_EMAIL_ADDRESS }}
+      PERSONAL_EMAIL_APP_PASSWORD: ${{ secrets.PERSONAL_EMAIL_APP_PASSWORD }}
+      SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+      TARGET_EMAIL_ADDRESS: ${{ secrets.TARGET_EMAIL_ADDRESS }}
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v4
         with:
           python-version: '3.11'
       - run: pip install google-api-python-client google-auth-oauthlib google-auth-httplib2 yfinance fredapi pandas numpy python-dotenv
-      - name: Diagnose secret
-        run: python -c "import os; v=os.environ.get('GOOGLE_CREDENTIALS_JSON',''); print('GOOGLE_CREDENTIALS_JSON length:', len(v))"
-        env:
-          GOOGLE_CREDENTIALS_JSON: ${{ secrets.GOOGLE_CREDENTIALS_JSON }}
       - run: python tracker.py
-        env:
-          GOOGLE_CREDENTIALS_JSON: ${{ secrets.GOOGLE_CREDENTIALS_JSON }}
-          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
-          PERSONAL_EMAIL_ADDRESS: ${{ secrets.PERSONAL_EMAIL_ADDRESS }}
-          PERSONAL_EMAIL_APP_PASSWORD: ${{ secrets.PERSONAL_EMAIL_APP_PASSWORD }}
-          SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
-          TARGET_EMAIL_ADDRESS: ${{ secrets.TARGET_EMAIL_ADDRESS }}
