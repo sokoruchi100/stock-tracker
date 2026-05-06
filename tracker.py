@@ -112,6 +112,16 @@ def get_price(ticker, for_date=None):
     hist = t.history(start=for_date, end=end)["Close"]
     return hist.iloc[0]
 
+def get_10y_2y_yield_curve(for_date=None, retries=3):
+    fred = Fred(api_key=os.environ.get("FRED_API_KEY"))
+    for i in range(retries):
+        try:
+            return fred.get_series('T10Y2Y', observation_end=for_date).iloc[-1]
+        except ValueError:
+            if i < retries - 1:
+                time.sleep(2)
+    raise RuntimeError("FRED API unavailable after retries")
+
 def get_credit_spread(for_date=None, retries=3):
     fred = Fred(api_key=os.environ.get("FRED_API_KEY"))
     for i in range(retries):
@@ -150,7 +160,7 @@ def input_data(for_date=None):
 
     SP500 = round(get_price("^GSPC", for_date), 2)
     TenYear = round(get_price("^TNX", for_date), 2)
-    YieldCurve = round(get_price("^TNX", for_date) - get_price("^IRX", for_date), 2)
+    YieldCurve = round(get_10y_2y_yield_curve(for_date), 2)
     CreditSpread = round(get_credit_spread(for_date), 2)
     Breadth = round(get_breadth(for_date), 2)
 
