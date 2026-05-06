@@ -1,10 +1,10 @@
 name: Stock Tracker
-on: 
+on:
   schedule:
-    - cron: '0 12 * * *'
-      timezone: 'America/New_York'
-    - cron: '30 16 * * *'
-      timezone: 'America/New_York'
+    - cron: "0 12 * * *"
+      timezone: "America/New_York"
+    - cron: "30 16 * * *"
+      timezone: "America/New_York"
   workflow_dispatch:
 jobs:
   run:
@@ -20,6 +20,6 @@ jobs:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v4
         with:
-          python-version: '3.11'
-      - run: pip install google-api-python-client google-auth-oauthlib google-auth-httplib2 yfinance fredapi pandas numpy python-dotenv
+          python-version: "3.11"
+      - run: pip install google-api-python-client google-auth-oauthlib google-auth-httplib2 yfinance fredapi pandas numpy python-dotenv lxml
       - run: python tracker.py
