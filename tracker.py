@@ -1,3 +1,5 @@
+from wsgiref import headers
+
 from auth import get_credentials
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
@@ -17,22 +19,6 @@ load_dotenv()
 START_DATE = "2026-04-27"
 RISK_POSITION = "B15"
 VALUED_POSITION = "B21"
-
-# Representative sample of large caps across sectors
-sample = [
-    "AAPL", "MSFT", "NVDA", "AMZN", "GOOGL",  # Tech
-    "JPM", "BAC", "GS", "WFC", "MS",            # Finance
-    "JNJ", "UNH", "PFE", "MRK", "ABT",          # Healthcare
-    "XOM", "CVX", "COP", "SLB", "EOG",          # Energy
-    "WMT", "HD", "MCD", "NKE", "SBUX",          # Consumer
-    "CAT", "BA", "GE", "MMM", "HON",            # Industrial
-    "NEE", "DUK", "SO", "D", "AEP",              # Utilities
-    "ENPH", "SEDG", "RUN", "ARRY",    # solar/clean energy
-    "AFRM", "UPST", "LC", "SOFI", "NU",        # fintech
-    "DKNG", "PENN", "CZR", "MGM", "WYNN",      # gaming/leisure
-    "AAL", "UAL", "DAL", "LUV", "ALK",         # airlines
-    "RKT", "OPEN", "Z", "TREX"         # housing adjacent
-]
 
 def get_config():
     result = batch_get_values(os.getenv("SPREADSHEET_ID"), "Config!A1:B4")
@@ -132,26 +118,52 @@ def get_credit_spread(for_date=None, retries=3):
                 time.sleep(2)
     raise RuntimeError("FRED API unavailable after retries")
 
-def get_breadth(for_date=None):
+def get_sp500_tickers():
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+    table = pd.read_html(
+        "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies",
+        storage_options={"User-Agent": headers["User-Agent"]}
+    )[0]
+    return table["Symbol"].str.replace(".", "-", regex=False).tolist()
+
+
+def get_breadth(tickers=None, for_date=None, weighting="equal"):
+    if tickers is None:
+        tickers = get_sp500_tickers()
+
     end = pd.to_datetime(for_date) + pd.Timedelta(days=4) if for_date else None
     start = pd.to_datetime(for_date) - pd.Timedelta(days=365) if for_date else None
 
-    results = []
-    weights = []
-    for ticker in sample:
+    above_200 = []
+    failed = []
+
+    prices = yf.download(tickers, period="1y", group_by="ticker", auto_adjust=True, progress=False)
+
+    for ticker in tickers:
         try:
-            hist = yf.Ticker(ticker).history(start=start, end=end, period=None if for_date else "1y")["Close"]
-            if len(hist) >= 200:
-                vol = hist.pct_change().std()
-                above = int(hist.iloc[-1] > hist.rolling(200).mean().iloc[-1])
-                results.append(above)
-                weights.append(vol)
-        except:
+            hist = prices[ticker]["Close"] if ticker in prices else yf.download(ticker, start=start, end=end, auto_adjust=True, progress=False)["Close"]
+
+            if len(hist) < 200:
+                continue
+
+            ma200 = hist.rolling(200).mean().iloc[-1]
+            price = hist.iloc[-1]
+            above_200.append(int(price > ma200))
+
+        except Exception as e:
+            failed.append(ticker)
             continue
 
-    weights = np.array(weights)
-    weights = weights / weights.sum()
-    return round(float(np.dot(results, weights) * 100), 1)
+    if not above_200:
+        raise ValueError("No valid data returned.")
+
+    breadth = round(sum(above_200) / len(above_200) * 100, 1)
+
+    if failed:
+        print(f"[warn] {len(failed)} tickers failed: {failed[:10]}{'...' if len(failed) > 10 else ''}")
+
+    print(f"[info] {sum(above_200)}/{len(above_200)} stocks above 200DMA")
+    return breadth
 
 def input_data(for_date=None):
     if for_date is None:
@@ -160,9 +172,9 @@ def input_data(for_date=None):
 
     SP500 = round(get_price("^GSPC", for_date), 2)
     TenYear = round(get_price("^TNX", for_date), 2)
-    YieldCurve = round(get_10y_2y_yield_curve(for_date), 2)
-    CreditSpread = round(get_credit_spread(for_date), 2)
-    Breadth = round(get_breadth(for_date), 2)
+    YieldCurve = round(get_10y_2y_yield_curve(for_date=for_date), 2)
+    CreditSpread = round(get_credit_spread(for_date=for_date), 2)
+    Breadth = round(get_breadth(for_date=for_date), 2)
 
     print(f"SP500: {SP500}, TenYear: {TenYear}, YieldCurve: {YieldCurve}, CreditSpread: {CreditSpread}, Breadth: {Breadth}")
 
